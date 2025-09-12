@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+/* keep pages from creating a horizontal scrollbar */
+html, body, #root { height: 100%; }
+body { margin: 0; overflow-x: hidden; background: #f9fafb; }
+
+/* hide scrollbars for carousels on all browsers */
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

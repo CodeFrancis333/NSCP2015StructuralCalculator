@@ -1,0 +1,49 @@
+# --- Python / Django ---
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+*.so
+.build/
+.python-version
+.env
+.env.*            # e.g., .env.dev, .env.production
+*.sqlite3
+db.sqlite3
+media/
+staticfiles/      # if you collectstatic into this
+.venv/
+venv/
+*.log
+
+# Django / coverage / mypy (optional)
+.coverage
+htmlcov/
+.mypy_cache/
+.pytest_cache/
+
+# --- Node / Vite ---
+node_modules/
+dist/
+.vite/
+.cache/
+*.local
+
+# package managers
+pnpm-lock.yaml
+yarn.lock
+# (keep only the one lockfile you actually use)
+# If you use npm, keep package-lock.json and remove the other two ignores
+
+# --- OS / IDE ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- Build / misc ---
+*.zip
+*.tar
+*.tar.gz
+*.tgz
