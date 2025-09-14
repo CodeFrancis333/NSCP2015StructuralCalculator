@@ -62,6 +62,16 @@ def min_clear_spacing(db: float, agg_size: Optional[float]) -> float:
         base = max(base, 1.33 * agg_size)
     return base
 
+# --- Steel ratio helpers (NSCP/ACI) ---
+def rho_min_flexure(fc_MPa: float, fy_MPa: float) -> float:
+    return max(1.4 / max(fy_MPa, EPS), 0.25 * math.sqrt(fc_MPa) / max(fy_MPa, EPS))
+
+
+def rho_max_flexure(fc_MPa: float, fy_MPa: float) -> float:
+    beta1 = beta1_of_fc(fc_MPa)
+    return (3.0 / 8.0) * (0.85 * beta1 * fc_MPa / max(fy_MPa, EPS))
+
+
 # ----------------------------
 # Automatic rebar placement
 # ----------------------------
@@ -636,6 +646,43 @@ def run_calculation(payload_in: Dict) -> Dict:
         agg_size=agg,
     )
 
+    # Steel ratio checks (tension)
+    As_t = sum_area(placement.bars, "tension")
+    y_t = centroid_of_role(placement.bars, "tension")
+    d_eff = h - y_t
+
+
+    beta1 = beta1_of_fc(fc)
+    # User-requested ρmax formula (NSCP/ACI compression-controlled limit proxy)
+    rho_max = (3.0/8.0) * (0.85 * beta1 * fc / max(fy_main, EPS))
+    # NSCP/ACI (metric) minimum: ρmin = max(1.4/fy, 0.25*sqrt(fc)/fy)
+    rho_min = max(1.4 / max(fy_main, EPS), 0.25 * math.sqrt(fc) / max(fy_main, EPS))
+
+
+    rho_prov = As_t / max(b * d_eff, EPS)
+
+
+    if rho_prov - rho_max > 1e-6:
+        raise ValueError(
+        f"Tension steel ratio ρ={rho_prov:.5f} exceeds ρ_max={rho_max:.5f}. "
+        f"Reduce bars or increase section (b or h) to satisfy ρ ≤ ρ_max."
+    )
+
+
+    # If below minimum, virtually increase As for strength (analysis only)
+    As_min = rho_min * b * d_eff
+    As_used = As_t
+    bars_for_calc = list(placement.bars)
+    used_rho_min = False
+    if As_t + 1e-9 < As_min:
+        deltaA = As_min - As_t
+        virt_dia = math.sqrt(4.0 * deltaA / math.pi)
+        x_mid = (placement.stirrup_inside.x_min + placement.stirrup_inside.x_max) / 2.0
+        # Add a virtual bar at the tension centroid elevation (doesn't appear in layout output)
+        bars_for_calc.append(Bar(x_mm=x_mid, y_mm=y_t, dia_mm=virt_dia, role="tension", layer=1))
+        As_used = As_min
+        used_rho_min = True
+
     # 2) Flexure
     flex = calc_flexure(
         b=b,
@@ -674,6 +721,15 @@ def run_calculation(payload_in: Dict) -> Dict:
             "fy_stirrup_MPa": fy_st,
             "Mu_kNm": Mu,
             "Vu_kN": Vu,
+        },
+        "reinforcement": {
+            "tension_As_mm2": As_t,
+            "d_mm": d_eff,
+            "rho": rho_prov,
+            "rho_min": rho_min,
+            "rho_max": rho_max,
+            "As_min_mm2": As_min,
+            "used_rho_min_for_capacity": used_rho_min
         },
         "rebar_layout": {
             "bars": [
