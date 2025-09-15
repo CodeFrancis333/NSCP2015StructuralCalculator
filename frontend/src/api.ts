@@ -1,12 +1,27 @@
+// src/api.ts
 import type { BeamRequest, BeamResponse, CatalogItem } from "./types";
 
-const BASE = "/api/v1";
+const BASE = (import.meta as any).env?.VITE_API_BASE ?? "/api/v1";
+
+async function parseJsonSafe(res: Response) {
+  const raw = await res.text();
+  try {
+    return { json: JSON.parse(raw), raw };
+  } catch {
+    return { json: null, raw };
+  }
+}
 
 export async function getCatalog(): Promise<CatalogItem[]> {
   try {
-    const r = await fetch(`${BASE}/catalog/`);
-    const data = await r.json();
-    return data.calculators as CatalogItem[];
+    const res = await fetch(`${BASE}/catalog/`);
+    const { json, raw } = await parseJsonSafe(res);
+    if (!res.ok) {
+      throw new Error(
+        json?.errors ? JSON.stringify(json.errors) : `HTTP ${res.status}: ${raw.slice(0, 300)}`
+      );
+    }
+    return (json?.calculators as CatalogItem[]) ?? [];
   } catch {
     // Fallback (if backend not ready)
     return [
@@ -20,12 +35,24 @@ export async function getCatalog(): Promise<CatalogItem[]> {
 }
 
 export async function calcBeam(payload: BeamRequest): Promise<BeamResponse> {
-  const r = await fetch(`${BASE}/beams/calc`, {
+  const res = await fetch(`${BASE}/beams/calc/`, { // <-- trailing slash matters
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  const data = await r.json();
-  if (!r.ok) throw new Error(typeof data === "object" ? JSON.stringify(data, null, 2) : String(data));
-  return data as BeamResponse;
+
+  const { json, raw } = await parseJsonSafe(res);
+
+  if (!res.ok) {
+    const msg = json?.errors
+      ? JSON.stringify(json.errors)
+      : `HTTP ${res.status} ${res.statusText}: ${raw.slice(0, 300)}`;
+    throw new Error(msg);
+  }
+
+  if (!json || typeof json !== "object") {
+    throw new Error(`Expected JSON but got: ${raw.slice(0, 300)}`);
+  }
+
+  return json as BeamResponse;
 }

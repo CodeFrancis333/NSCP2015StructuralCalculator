@@ -1,6 +1,6 @@
-export type CatalogItem = { slug: string; name: string };
-
 // src/types.ts
+
+export type CatalogItem = { slug: string; name: string };
 
 // ---------- Shared shapes ----------
 export interface StirrupRect {
@@ -32,8 +32,9 @@ export interface BeamRequest {
   n_compression?: number;
   fy_main: number;
   fy_stirrup: number;
-  Mu: number; // kN·m
-  Vu: number; // kN
+  Mu: number;             // kN·m
+  Vu?: number | null;     // kN (optional)
+  lightweight?: boolean;  // default false (λ = 1.0)
 }
 
 // ---------- Response pieces ----------
@@ -52,15 +53,45 @@ export interface Flexure {
   derivation: unknown;
 }
 
+export type GoverningLimit = "strength" | "table" | "minimum";
+
 export interface Shear {
-  Vc_kN: number;
+  // Core
   phi: number;
-  s_req_mm: number;
-  s_min_req_mm: number;
-  s_max_mm: number;
-  s_use_mm: number;
+  lambda_concrete: number; // λ = 1.0 (normal) or 0.75 (lightweight)
+  Vc_kN: number;
+
+  // Strength/spacing
+  Vs_req_kN: number;       // required Vs from strength
+  Vs_threshold_kN: number; // 0.33*sqrt(fc)*b*d (table branch)
+  table_case: string;      // human text which branch applied
+  s_req_mm: number;        // from strength
+  s_min_req_mm: number;    // from minimum Av/s
+  s_table_max_mm: number;  // from table limit (min(d/2,600) or min(d/4,300))
+  s_use_mm: number;        // governing spacing actually used
+  governing_limit: GoverningLimit;
+
+  // Provided capacity @ s_use
+  Vs_prov_kN: number;
   phiVn_kN: number;
   ok: boolean;
+
+  // Cross-sectional dimension limit (Sec. 422.5.1.2)
+  dim_limit_phiV_kN: number;
+  ok_dim: boolean;
+
+  // Echo of inputs helpful in report/debug
+  inputs: {
+    b_mm: number;
+    d_mm: number;
+    fc_MPa: number;
+    fyt_MPa: number;
+    stirrup_phi_mm: number;
+    Av_mm2: number;
+  };
+
+  // Text note for 409.4.3
+  support_shear_note: string;
 }
 
 export interface Reinforcement {
@@ -88,7 +119,8 @@ export interface BeamResponse {
     fy_main_MPa: number;
     fy_stirrup_MPa: number;
     Mu_kNm: number;
-    Vu_kN: number;
+    Vu_kN?: number | null;  // may be null/undefined if not provided
+    lightweight?: boolean;
   };
   rebar_layout: {
     bars: Bar[];
@@ -100,7 +132,6 @@ export interface BeamResponse {
     flexure_capacity_kNm: number;
     shear: Shear;
   };
-  reinforcement?: Reinforcement; // present after your rho logic
-  latex?: string;                 // backend returns this too
+  reinforcement: Reinforcement; // backend now always sends this
+  latex?: string;
 }
-

@@ -26,7 +26,9 @@ class BeamInputSerializer(serializers.Serializer):
 
     # IV. Factored loads
     Mu = serializers.FloatField(min_value=0.0, required=True)  # kN-m
-    Vu = serializers.FloatField(min_value=0.0, required=True)  # kN
+    Vu = serializers.FloatField(min_value=0.0, required=False, allow_null=True)  # kN
+
+    lightweight = serializers.BooleanField(required=False, default=False)
 
     def validate(self, data):
         errors = {}
@@ -61,6 +63,12 @@ class BeamInputSerializer(serializers.Serializer):
             pass
         elif data.get("n_compression", 0) > 0 and data.get("compression_bar_dia") is None:
             errors["compression_bar_dia"] = "Provide compression_bar_dia if n_compression > 0"
+
+        # Forces
+        if data.get("Vu") is None:
+            data["Vu"] = 0.0
+        if data.get("Mu") is None:
+            data["Mu"] = 0.0
 
         if errors:
             raise serializers.ValidationError(errors)

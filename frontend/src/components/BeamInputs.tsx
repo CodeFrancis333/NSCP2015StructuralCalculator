@@ -2,62 +2,121 @@ import { useState } from "react";
 import type { BeamRequest } from "../types";
 
 type Form = {
-  width:string;height:string;cover:string;fc:string;agg_size:string;
-  stirrup_dia:string;tension_bar_dia:string;compression_bar_dia:string;
-  n_tension:string;n_compression:string;fy_main:string;fy_stirrup:string;Mu:string;Vu:string;
+  width: string;
+  height: string;
+  cover: string;
+
+  fc: string;
+  agg_size: string;
+
+  stirrup_dia: string;
+  tension_bar_dia: string;
+  compression_bar_dia: string;
+
+  n_tension: string;
+  n_compression: string;
+
+  fy_main: string;     // main bars
+  fy_stirrup: string;  // stirrups
+
+  Mu: string;
+  Vu: string;          // optional (empty string = not provided)
+
+  lightweight: boolean; // λ=0.75 if true, else 1.0
 };
 
 const init: Form = {
-  width:"300", height:"500", cover:"40",
-  fc:"27.6", agg_size:"20",
-  stirrup_dia:"10", tension_bar_dia:"20", compression_bar_dia:"16",
-  n_tension:"4", n_compression:"2",
-  fy_main:"414", fy_stirrup:"275",
-  Mu:"120", Vu:"180",
+  width: "300",
+  height: "500",
+  cover: "40",
+
+  fc: "27.6",
+  agg_size: "20",
+
+  stirrup_dia: "10",
+  tension_bar_dia: "20",
+  compression_bar_dia: "16",
+
+  n_tension: "4",
+  n_compression: "2",
+
+  fy_main: "414",
+  fy_stirrup: "275",
+
+  Mu: "120",
+  Vu: "",             // ← leave blank by default (optional)
+  lightweight: false, // normal-weight concrete by default
 };
 
-type Props = { onRun:(p:BeamRequest)=>Promise<void>; loading:boolean };
+type Props = { onRun: (p: BeamRequest) => Promise<void>; loading: boolean };
 
 export default function BeamInputs({ onRun, loading }: Props) {
-  const [f,setF] = useState<Form>(init);
-  const [err,setErr] = useState<string|null>(null);
+  const [f, setF] = useState<Form>(init);
+  const [err, setErr] = useState<string | null>(null);
 
   const clsInput =
     "w-full px-3 py-2 rounded-lg border bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-lime-400";
 
-  // keep everything as strings here; parse on submit only
-  const set = (k: keyof Form) => (v: string) => setF(s => ({ ...s, [k]: v }));
+  // keep everything as strings; parse on submit only
+  const set = (k: keyof Form) => (v: string | boolean) =>
+    setF((s) => ({ ...s, [k]: v as any }));
 
-  const toNum = (s: string) => s.trim() === "" ? NaN : Number(s.replace(",", "."));
+  const toNum = (s: string) =>
+    s.trim() === "" ? NaN : Number(s.replace(",", "."));
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
-    const payload: BeamRequest = {
+
+    const basePayload: BeamRequest = {
       width: toNum(f.width),
       height: toNum(f.height),
       cover: toNum(f.cover),
+
       fc: toNum(f.fc),
-      agg_size: f.agg_size.trim()==="" ? null : toNum(f.agg_size),
+      agg_size: f.agg_size.trim() === "" ? null : toNum(f.agg_size),
+
       stirrup_dia: toNum(f.stirrup_dia),
       tension_bar_dia: toNum(f.tension_bar_dia),
-      compression_bar_dia: f.compression_bar_dia.trim()==="" ? null : toNum(f.compression_bar_dia),
+      compression_bar_dia:
+        f.compression_bar_dia.trim() === "" ? null : toNum(f.compression_bar_dia),
+
       n_tension: toNum(f.n_tension),
       n_compression: toNum(f.n_compression),
+
       fy_main: toNum(f.fy_main),
       fy_stirrup: toNum(f.fy_stirrup),
+
       Mu: toNum(f.Mu),
-      Vu: toNum(f.Vu),
+
+      // optional:
+      lightweight: f.lightweight,
     };
 
-    // quick client-side check for required fields
+    const payload: BeamRequest =
+      f.Vu.trim() === "" ? basePayload : { ...basePayload, Vu: toNum(f.Vu) };
+
+    // quick client-side check for required fields (Vu is optional)
     const required = [
-      payload.width, payload.height, payload.cover, payload.fc,
-      payload.stirrup_dia, payload.tension_bar_dia, payload.n_tension,
-      payload.fy_main, payload.fy_stirrup, payload.Mu, payload.Vu,
+      payload.width,
+      payload.height,
+      payload.cover,
+      payload.fc,
+      payload.stirrup_dia,
+      payload.tension_bar_dia,
+      payload.n_tension,
+      payload.fy_main,
+      payload.fy_stirrup,
+      payload.Mu,
     ];
-    if (required.some(x => !Number.isFinite(x))) {
+
+    if (required.some((x) => !Number.isFinite(x))) {
       setErr("Please complete required numeric fields.");
+      return;
+    }
+
+    if ("Vu" in payload && !Number.isFinite((payload as any).Vu)) {
+      setErr("Vu must be a number or leave it blank (optional).");
       return;
     }
 
@@ -67,42 +126,114 @@ export default function BeamInputs({ onRun, loading }: Props) {
   return (
     <form onSubmit={submit} className="space-y-3">
       <Panel title="Beam Geometry">
-        <Field label="b (mm)" v={f.width} set={set("width")} cls={clsInput}/>
-        <Field label="h (mm)" v={f.height} set={set("height")} cls={clsInput}/>
-        <Field label="cover (mm)" v={f.cover} set={set("cover")} cls={clsInput}/>
+        <Field label="b (mm)" v={f.width} set={(s) => set("width")(s)} cls={clsInput} />
+        <Field label="h (mm)" v={f.height} set={(s) => set("height")(s)} cls={clsInput} />
+        <Field label="cover (mm)" v={f.cover} set={(s) => set("cover")(s)} cls={clsInput} />
       </Panel>
 
       <Panel title="Concrete Properties">
-        <Field label="f'c (MPa)" v={f.fc} set={set("fc")} cls={clsInput}/>
-        <Field label="agg. size (mm)" v={f.agg_size} set={set("agg_size")} cls={clsInput}/>
+        <Field label="f'c (MPa)" v={f.fc} set={(s) => set("fc")(s)} cls={clsInput} />
+        <Field
+          label="agg. size (mm)"
+          v={f.agg_size}
+          set={(s) => set("agg_size")(s)}
+          cls={clsInput}
+        />
+        <Checkbox
+          label="Lightweight concrete (λ = 0.75)"
+          checked={f.lightweight}
+          onChange={(v) => set("lightweight")(v)}
+        />
       </Panel>
 
       <Panel title="Steel Properties">
-        <Field label="stirrup φ (mm)" v={f.stirrup_dia} set={set("stirrup_dia")} cls={clsInput}/>
-        <Field label="tension bar φ (mm)" v={f.tension_bar_dia} set={set("tension_bar_dia")} cls={clsInput}/>
-        <Field label="comp. bar φ (mm)" v={f.compression_bar_dia} set={set("compression_bar_dia")} cls={clsInput}/>
-        <Field label="# tension bars" v={f.n_tension} set={set("n_tension")} cls={clsInput}/>
-        <Field label="# comp. bars" v={f.n_compression} set={set("n_compression")} cls={clsInput}/>
-        <Field label="fyt (MPa)" v={f.fy_main} set={set("fy_main")} cls={clsInput}/>
-        <Field label="fys (MPa)" v={f.fy_stirrup} set={set("fy_stirrup")} cls={clsInput}/>
+        <Field
+          label="stirrup φ (mm)"
+          v={f.stirrup_dia}
+          set={(s) => set("stirrup_dia")(s)}
+          cls={clsInput}
+        />
+        <Field
+          label="tension bar φ (mm)"
+          v={f.tension_bar_dia}
+          set={(s) => set("tension_bar_dia")(s)}
+          cls={clsInput}
+        />
+        <Field
+          label="comp. bar φ (mm)"
+          v={f.compression_bar_dia}
+          set={(s) => set("compression_bar_dia")(s)}
+          cls={clsInput}
+        />
+        <Field
+          label="# tension bars"
+          v={f.n_tension}
+          set={(s) => set("n_tension")(s)}
+          cls={clsInput}
+        />
+        <Field
+          label="# comp. bars"
+          v={f.n_compression}
+          set={(s) => set("n_compression")(s)}
+          cls={clsInput}
+        />
+        <Field
+          label="fy (main) MPa"
+          v={f.fy_main}
+          set={(s) => set("fy_main")(s)}
+          cls={clsInput}
+        />
+        <Field
+          label="fy (stirrups) MPa"
+          v={f.fy_stirrup}
+          set={(s) => set("fy_stirrup")(s)}
+          cls={clsInput}
+        />
       </Panel>
 
       <Panel title="Beam Loads">
-        <Field label="Mu (kN·m)" v={f.Mu} set={set("Mu")} cls={clsInput}/>
-        <Field label="Vu (kN)" v={f.Vu} set={set("Vu")} cls={clsInput}/>
+        <Field label="Mu (kN·m)" v={f.Mu} set={(s) => set("Mu")(s)} cls={clsInput} />
+        <Field
+          label="Vu (kN) — optional"
+          v={f.Vu}
+          set={(s) => set("Vu")(s)}
+          cls={clsInput}
+        />
       </Panel>
 
-      {err && <div className="text-sm text-red-700 bg-red-50 border border-red-200 p-2 rounded">{err}</div>}
+      {err && (
+        <div className="text-sm text-red-700 bg-red-50 border border-red-200 p-2 rounded">
+          {err}
+        </div>
+      )}
 
-      <button disabled={loading} className="px-4 py-2 rounded-xl bg-black text-white disabled:opacity-60">
-        {loading ? "Running…" : "Run"}
-      </button>
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={loading}
+          className="px-4 py-2 rounded-xl bg-black text-white disabled:opacity-60"
+        >
+          {loading ? "Running…" : "Run"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setF(init)}
+          className="px-4 py-2 rounded-xl border border-gray-300 bg-white"
+        >
+          Reset
+        </button>
+      </div>
     </form>
   );
 }
 
-function Panel({title, children}:{title:string; children:React.ReactNode}) {
-  // matches your dark panel while keeping inputs readable
+function Panel({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="rounded-2xl p-4 bg-gradient-to-b from-gray-800 to-gray-900 text-gray-100 shadow">
       <div className="font-semibold mb-3">{title}</div>
@@ -110,11 +241,21 @@ function Panel({title, children}:{title:string; children:React.ReactNode}) {
     </div>
   );
 }
-function Field({label, v, set, cls}:{label:string; v:string; set:(s:string)=>void; cls:string}) {
+
+function Field({
+  label,
+  v,
+  set,
+  cls,
+}: {
+  label: string;
+  v: string;
+  set: (s: string) => void;
+  cls: string;
+}) {
   return (
     <label className="text-sm grid gap-1">
       <span className="text-gray-100">{label}</span>
-      {/* IMPORTANT: text input with string value so focus is never lost */}
       <input
         type="text"
         inputMode="decimal"
@@ -122,9 +263,31 @@ function Field({label, v, set, cls}:{label:string; v:string; set:(s:string)=>voi
         autoComplete="off"
         className={cls}
         value={v}
-        onChange={(e)=>set(e.target.value)}
+        onChange={(e) => set(e.target.value)}
+        placeholder=""
       />
     </label>
   );
 }
 
+function Checkbox({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center gap-2 text-sm">
+      <input
+        type="checkbox"
+        className="h-4 w-4 rounded border-gray-300"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span className="text-gray-100">{label}</span>
+    </label>
+  );
+}
